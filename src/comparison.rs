@@ -1,3 +1,5 @@
+use std::fmt::{self, Display};
+
 use sqlparser::ast;
 
 use crate::{
@@ -60,6 +62,25 @@ pub enum CompareOp {
     IsFalse,
     /// Check if column's value is not `false`.
     IsNotFalse,
+}
+
+impl Display for CompareOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CompareOp::Lt { value: _ } => write!(f, "Less than"),
+            CompareOp::LtEq { value: _ } => write!(f, "Less than or equal"),
+            CompareOp::Gt { value: _ } => write!(f, "Greater than"),
+            CompareOp::GtEq { value: _ } => write!(f, "Greater than or equal"),
+            CompareOp::Eq { value: _ } => write!(f, "Equal"),
+            CompareOp::NotEq { value: _ } => write!(f, "Not equal"),
+            CompareOp::IsNull => write!(f, "Is null"),
+            CompareOp::IsNotNull => write!(f, "Is not null"),
+            CompareOp::IsTrue => write!(f, "Is true"),
+            CompareOp::IsNotTrue => write!(f, "Is not true"),
+            CompareOp::IsFalse => write!(f, "Is false"),
+            CompareOp::IsNotFalse => write!(f, "Is not false"),
+        }
+    }
 }
 
 impl CompareOp {
