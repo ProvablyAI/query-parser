@@ -1,9 +1,23 @@
 [workspace]
 
 [package]
-name = "query-parser"
-version = "0.1.1"
+name = "koron-query-parser"
+version = "1.0.0"
 edition = "2021"
+description = "Query Parser for Koron"
+repository = "https://github.com/KryptonZK/query-parser"
+authors = ["KryptonZK <hello@kryptonzk.com>", "Provably <hello@provably.ai>"]
+license = "Apache-2.0"
+readme = "README.md"
+homepage = "https://provably.ai"
+keywords = ["parser", "sql"]
+categories = ["Parser"]
+include = [
+    "/Cargo.toml",
+    "/LICENSE.md",
+    "/README.md",
+    "/src/**"
+]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
