@@ -7,6 +7,7 @@ use crate::{
     support::remove_outer_parens,
 };
 
+use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 
 use crate::unsupported;
@@ -135,7 +136,7 @@ impl<'a> FilterExtractor<'a> {
 }
 
 /// Contains information related to the filter applied in the query parsed.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Filter {
     /// Column on which the filter is applied.
     pub column: String,

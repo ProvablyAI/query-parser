@@ -1,5 +1,6 @@
-use std::fmt::{self, Display};
+use std::{default, fmt::{self, Display}};
 
+use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 
 use crate::{
@@ -12,7 +13,7 @@ use super::support::{case_fold_identifier, extract_qualified_column, remove_oute
 ///
 /// Represents an occurrence of an aggregation such as `function(column)`
 /// within the `SELECT` clause of a query.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Aggregation {
     /// The function used as aggregator of column's values.
     pub function: KoronFunction,
@@ -165,11 +166,12 @@ impl Aggregation {
 }
 
 /// Represents a Koron aggregation / analytic function.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum KoronFunction {
     /// The `sum` aggregation function.
     Sum,
     /// The `count` aggregation function.
+    #[default]
     Count,
 }
 

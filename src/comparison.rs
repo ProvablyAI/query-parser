@@ -1,5 +1,6 @@
-use std::fmt::{self, Display};
+use std::{default, fmt::{self, Display}};
 
+use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 
 use crate::{
@@ -36,7 +37,7 @@ pub const fn is_expression_supported(op: &ast::Expr) -> bool {
 }
 
 /// The comparison operation between the value of an unspecified column and some constant values.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum CompareOp {
     /// Check if column's value is less than `value`.
     Lt { value: String },
@@ -51,6 +52,7 @@ pub enum CompareOp {
     /// Check if column's value is not equal to `value`.
     NotEq { value: String },
     /// Check if column's value is `NULL`.
+    #[default]
     IsNull,
     /// Check if column's value is not `NULL`.
     IsNotNull,
