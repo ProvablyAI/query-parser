@@ -11,7 +11,7 @@ license = "Apache-2.0"
 readme = "README.md"
 homepage = "https://provably.ai"
 keywords = ["parser", "sql"]
-categories = ["Parser"]
+categories = ["parser-implementations"]
 include = [
     "/Cargo.toml",
     "/LICENSE.md",
