@@ -2,6 +2,7 @@ use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 use sqlparser::{ast, dialect::GenericDialect, parser::Parser};
+use utoipa::{IntoParams, ToSchema};
 
 use crate::{
     aggregation::Aggregation,
@@ -14,7 +15,7 @@ use crate::{
 };
 
 /// QueryMetadata extracted from the query.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema, IntoParams)]
 pub struct QueryMetadata {
     /// Aggregation performed.
     pub aggregation: Aggregation,

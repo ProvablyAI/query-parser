@@ -9,6 +9,7 @@ use crate::{
 
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;
+use utoipa::{IntoParams, ToSchema};
 
 use crate::unsupported;
 
@@ -136,7 +137,7 @@ impl<'a> FilterExtractor<'a> {
 }
 
 /// Contains information related to the filter applied in the query parsed.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema, IntoParams)]
 pub struct Filter {
     /// Column on which the filter is applied.
     pub column: String,

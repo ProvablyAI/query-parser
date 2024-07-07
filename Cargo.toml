@@ -2,7 +2,7 @@
 
 [package]
 name = "koron-query-parser"
-version = "1.0.1"
+version = "1.0.2"
 edition = "2021"
 description = "Query Parser for Koron"
 repository = "https://github.com/KryptonZK/query-parser"
@@ -25,3 +25,4 @@ include = [
 thiserror = "1.0.56"
 sqlparser = "0.41.0"
 serde = { version = "1", features = ["derive"] }
+utoipa = { version = "5.0.0-alpha.0" }
