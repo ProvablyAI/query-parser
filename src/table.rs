@@ -1,6 +1,7 @@
 use std::fmt::{self, Display};
 
 use crate::error::ParseError;
+use serde::{Deserialize, Serialize};
 use sqlparser::ast;
 
 use super::{internal, unsupported};
@@ -73,7 +74,7 @@ impl TableIdentWithAlias {
     }
 }
 
-#[derive(PartialEq, Eq, Clone, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TabIdent {
     pub db: Option<String>,
     pub schema: Option<String>,
