@@ -1,4 +1,4 @@
-use std::{default, fmt::{self, Display}};
+use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;
@@ -38,6 +38,7 @@ pub const fn is_expression_supported(op: &ast::Expr) -> bool {
 
 /// The comparison operation between the value of an unspecified column and some constant values.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(tag = "type")]
 pub enum CompareOp {
     /// Check if column's value is less than `value`.
     Lt { value: String },

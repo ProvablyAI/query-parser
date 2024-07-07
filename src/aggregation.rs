@@ -1,4 +1,4 @@
-use std::{default, fmt::{self, Display}};
+use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
 use sqlparser::ast;
