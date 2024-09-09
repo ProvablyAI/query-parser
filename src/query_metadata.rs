@@ -69,6 +69,70 @@ impl QueryMetadata {
             ))
         }
     }
+
+    pub fn create_data_extraction_query(
+        &self,
+        quote_style: Option<char>, // e.g. "'" for PostgreSQL, "`" for MySQL
+    ) -> String {
+        let mut projection = Vec::default();
+        let aggregation_column_ident =
+            ast::SelectItem::UnnamedExpr(ast::Expr::Identifier(ast::Ident {
+                value: self.aggregation.column.clone(),
+                quote_style,
+            }));
+        projection.push(aggregation_column_ident);
+        if let Some(filter) = &self.filter {
+            if filter.column != self.aggregation.column {
+                let filter_column_ident =
+                    ast::SelectItem::UnnamedExpr(ast::Expr::Identifier(ast::Ident {
+                        value: filter.column.clone(),
+                        quote_style,
+                    }));
+                projection.push(filter_column_ident);
+            }
+        }
+        let from = vec![ast::TableWithJoins {
+            relation: ast::TableFactor::Table {
+                name: self.table.into_object_name(quote_style),
+                alias: None,
+                args: None,
+                with_hints: Vec::default(),
+                version: None,
+                partitions: Vec::default(),
+            },
+            joins: Vec::default(),
+        }];
+        let select_expr = ast::Select {
+            distinct: None,
+            top: None,
+            projection,
+            into: None,
+            from,
+            lateral_views: Vec::default(),
+            selection: None,
+            group_by: ast::GroupByExpr::Expressions(Vec::default()),
+            cluster_by: Vec::default(),
+            distribute_by: Vec::default(),
+            sort_by: Vec::default(),
+            having: None,
+            qualify: None,
+            named_window: Vec::default(),
+        };
+        let query_body = ast::SetExpr::Select(Box::new(select_expr));
+        let query = ast::Query {
+            with: None,
+            body: Box::new(query_body),
+            order_by: Vec::default(),
+            limit: None,
+            offset: None,
+            fetch: None,
+            locks: Vec::default(),
+            limit_by: Vec::default(),
+            for_clause: None,
+        };
+        let select_statement = ast::Statement::Query(Box::new(query));
+        select_statement.to_string()
+    }
 }
 
 #[derive(Clone, Copy)]

@@ -39,16 +39,44 @@ mod tests {
     #[test]
     fn basic_aggregation() {
         let cases = [
-            ("SUM(test_column_2)", KoronFunction::Sum),
-            ("COUNT(test_column_2)", KoronFunction::Count),
-            ("AVERAGE(test_column_2)", KoronFunction::Average),
-            ("AVG(test_column_2)", KoronFunction::Average),
-            ("MEDIAN(test_column_2)", KoronFunction::Median),
-            ("VARIANCE(test_column_2)", KoronFunction::Variance),
-            ("VAR(test_column_2)", KoronFunction::Variance),
+            (
+                "SUM(test_column_2)",
+                KoronFunction::Sum,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            (
+                "COUNT(test_column_2)",
+                KoronFunction::Count,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            (
+                "AVERAGE(test_column_2)",
+                KoronFunction::Average,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            (
+                "AVG(test_column_2)",
+                KoronFunction::Average,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            (
+                "MEDIAN(test_column_2)",
+                KoronFunction::Median,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            (
+                "VARIANCE(test_column_2)",
+                KoronFunction::Variance,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            (
+                "VAR(test_column_2)",
+                KoronFunction::Variance,
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
         ];
 
-        for (projection, function) in cases {
+        for (projection, function, expected_query) in cases {
             let query = &format!("SELECT {projection} FROM test_db.test_schema.test_table_1");
 
             let expected = Ok(QueryMetadata {
@@ -65,6 +93,10 @@ mod tests {
                 expected,
                 "\nfailed for aggregation {projection}",
             );
+            assert_eq!(
+                expected.unwrap().create_data_extraction_query(None),
+                expected_query
+            )
         }
     }
 
@@ -744,13 +776,25 @@ mod tests {
                 let expected = Ok(QueryMetadata {
                     table: sample_tab_ident(),
                     aggregation,
-                    filter: Some(filter),
+                    filter: Some(filter.clone()),
                 });
                 assert_eq!(
                     QueryMetadata::parse(query),
                     expected,
                     "\nfailed for selection {selection:?}",
                 );
+                let expected_query = if &filter.column == "test_column_2" {
+                    "SELECT test_column_2 FROM test_db.test_schema.test_table_1".to_string()
+                } else {
+                    format!(
+                        "SELECT test_column_2, {} FROM test_db.test_schema.test_table_1",
+                        filter.column
+                    )
+                };
+                assert_eq!(
+                    expected.unwrap().create_data_extraction_query(None),
+                    expected_query
+                )
             }
         };
 

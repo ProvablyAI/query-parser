@@ -109,6 +109,27 @@ impl TabIdent {
             ))),
         }
     }
+
+    pub fn into_object_name(&self, quote_style: Option<char>) -> ast::ObjectName {
+        let mut objects = vec![];
+        if let Some(db) = self.db.clone() {
+            objects.push(ast::Ident {
+                value: db,
+                quote_style,
+            })
+        }
+        if let Some(schema) = self.schema.clone() {
+            objects.push(ast::Ident {
+                value: schema,
+                quote_style,
+            })
+        }
+        objects.push(ast::Ident {
+            value: self.table.clone(),
+            quote_style,
+        });
+        ast::ObjectName(objects)
+    }
 }
 
 impl Display for TabIdent {
