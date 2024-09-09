@@ -41,6 +41,11 @@ mod tests {
         let cases = [
             ("SUM(test_column_2)", KoronFunction::Sum),
             ("COUNT(test_column_2)", KoronFunction::Count),
+            ("AVERAGE(test_column_2)", KoronFunction::Average),
+            ("AVG(test_column_2)", KoronFunction::Average),
+            ("MEDIAN(test_column_2)", KoronFunction::Median),
+            ("VARIANCE(test_column_2)", KoronFunction::Variance),
+            ("VAR(test_column_2)", KoronFunction::Variance),
         ];
 
         for (projection, function) in cases {
@@ -474,20 +479,8 @@ mod tests {
                 "unrecognized or unsupported function: MAX."
             ),
             (
-                "SELECT AVG(test_column_2) FROM test_db.test_schema.test_table_1;",
-                "unrecognized or unsupported function: AVG."
-            ),
-            (
                 "SELECT STDDEV(test_column_2) FROM test_db.test_schema.test_table_1;",
                 "unrecognized or unsupported function: STDDEV."
-            ),
-            (
-                "SELECT VARIANCE(test_column_2) FROM test_db.test_schema.test_table_1;",
-                "unrecognized or unsupported function: VARIANCE."
-            ),
-            (
-                "SELECT MEDIAN(test_column_2) FROM test_db.test_schema.test_table_1;",
-                "unrecognized or unsupported function: MEDIAN."
             ),
             (
                 "SELECT KTHELEMENT(test_column_2, 3) FROM test_db.test_schema.test_table_1;",

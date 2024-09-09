@@ -102,6 +102,9 @@ impl Aggregation {
             match &case_fold_identifier(unqualified_name)[..] {
                 "sum" => return only_column_arg(KoronFunction::Sum),
                 "count" => return only_column_arg(KoronFunction::Count),
+                "average" | "avg" => return only_column_arg(KoronFunction::Average),
+                "median" => return only_column_arg(KoronFunction::Median),
+                "variance" | "var" => return only_column_arg(KoronFunction::Variance),
                 _ => (),
             }
         }
@@ -174,6 +177,12 @@ pub enum KoronFunction {
     /// The `count` aggregation function.
     #[default]
     Count,
+    /// The `average` aggregation function.
+    Average,
+    /// The `median` aggregation function.
+    Median,
+    /// The `variance` aggregation function.
+    Variance,
 }
 
 impl Display for KoronFunction {
@@ -181,6 +190,9 @@ impl Display for KoronFunction {
         match self {
             Self::Sum => write!(f, "Sum"),
             Self::Count => write!(f, "Count"),
+            Self::Average => write!(f, "Average"),
+            Self::Median => write!(f, "Median"),
+            Self::Variance => write!(f, "Variance"),
         }
     }
 }
@@ -191,7 +203,13 @@ mod tests {
 
     #[test]
     fn koron_fn_display() {
-        let cases = [(KoronFunction::Count, "Count"), (KoronFunction::Sum, "Sum")];
+        let cases = [
+            (KoronFunction::Count, "Count"),
+            (KoronFunction::Sum, "Sum"),
+            (KoronFunction::Variance, "Variance"),
+            (KoronFunction::Median, "Median"),
+            (KoronFunction::Average, "Average"),
+        ];
         for (koron_fn, expected) in cases {
             assert_eq!(koron_fn.to_string(), expected.to_string());
         }
