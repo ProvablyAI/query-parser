@@ -102,9 +102,10 @@ impl Aggregation {
             match &case_fold_identifier(unqualified_name)[..] {
                 "sum" => return only_column_arg(KoronFunction::Sum),
                 "count" => return only_column_arg(KoronFunction::Count),
-                "average" | "avg" => return only_column_arg(KoronFunction::Average),
+                "avg" => return only_column_arg(KoronFunction::Average),
                 "median" => return only_column_arg(KoronFunction::Median),
-                "variance" | "var" => return only_column_arg(KoronFunction::Variance),
+                "variance" => return only_column_arg(KoronFunction::Variance),
+                "stddev" => return only_column_arg(KoronFunction::StandardDeviation),
                 _ => (),
             }
         }
@@ -183,6 +184,8 @@ pub enum KoronFunction {
     Median,
     /// The `variance` aggregation function.
     Variance,
+    /// The `stddev` aggregation function.
+    StandardDeviation,
 }
 
 impl Display for KoronFunction {
@@ -193,6 +196,7 @@ impl Display for KoronFunction {
             Self::Average => write!(f, "Average"),
             Self::Median => write!(f, "Median"),
             Self::Variance => write!(f, "Variance"),
+            Self::StandardDeviation => write!(f, "Standard Deviation"),
         }
     }
 }
@@ -209,6 +213,7 @@ mod tests {
             (KoronFunction::Variance, "Variance"),
             (KoronFunction::Median, "Median"),
             (KoronFunction::Average, "Average"),
+            (KoronFunction::StandardDeviation, "Standard Deviation"),
         ];
         for (koron_fn, expected) in cases {
             assert_eq!(koron_fn.to_string(), expected.to_string());

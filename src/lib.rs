@@ -39,44 +39,15 @@ mod tests {
     #[test]
     fn basic_aggregation() {
         let cases = [
-            (
-                "SUM(test_column_2)",
-                KoronFunction::Sum,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            (
-                "COUNT(test_column_2)",
-                KoronFunction::Count,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            (
-                "AVERAGE(test_column_2)",
-                KoronFunction::Average,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            (
-                "AVG(test_column_2)",
-                KoronFunction::Average,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            (
-                "MEDIAN(test_column_2)",
-                KoronFunction::Median,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            (
-                "VARIANCE(test_column_2)",
-                KoronFunction::Variance,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            (
-                "VAR(test_column_2)",
-                KoronFunction::Variance,
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
+            ("SUM(test_column_2)", KoronFunction::Sum),
+            ("COUNT(test_column_2)", KoronFunction::Count),
+            ("AVG(test_column_2)", KoronFunction::Average),
+            ("MEDIAN(test_column_2)", KoronFunction::Median),
+            ("VARIANCE(test_column_2)", KoronFunction::Variance),
+            ("STDDEV(test_column_2)", KoronFunction::StandardDeviation),
         ];
 
-        for (projection, function, expected_query) in cases {
+        for (projection, function) in cases {
             let query = &format!("SELECT {projection} FROM test_db.test_schema.test_table_1");
 
             let expected = Ok(QueryMetadata {
@@ -95,7 +66,7 @@ mod tests {
             );
             assert_eq!(
                 expected.unwrap().create_data_extraction_query(None),
-                expected_query
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1"
             )
         }
     }
@@ -509,10 +480,6 @@ mod tests {
             (
                 "SELECT MAX(test_column_2) FROM test_db.test_schema.test_table_1;",
                 "unrecognized or unsupported function: MAX."
-            ),
-            (
-                "SELECT STDDEV(test_column_2) FROM test_db.test_schema.test_table_1;",
-                "unrecognized or unsupported function: STDDEV."
             ),
             (
                 "SELECT KTHELEMENT(test_column_2, 3) FROM test_db.test_schema.test_table_1;",

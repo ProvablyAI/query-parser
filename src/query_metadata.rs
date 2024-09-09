@@ -133,6 +133,13 @@ impl QueryMetadata {
         let select_statement = ast::Statement::Query(Box::new(query));
         select_statement.to_string()
     }
+
+    pub fn create_data_aggregation_query(
+        &self,
+        _quote_style: Option<char>, // e.g. "'" for PostgreSQL, "`" for MySQL
+    ) -> String {
+        todo!()
+    }
 }
 
 #[derive(Clone, Copy)]
