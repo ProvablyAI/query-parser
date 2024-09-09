@@ -210,8 +210,8 @@ mod tests {
         let cases = [
             (KoronFunction::Count, "COUNT"),
             (KoronFunction::Sum, "SUM"),
-            (KoronFunction::Variance, "VAR"),
-            (KoronFunction::Median, "MEDINA"),
+            (KoronFunction::Variance, "VARIANCE"),
+            (KoronFunction::Median, "MEDIAN"),
             (KoronFunction::Average, "AVG"),
             (KoronFunction::StandardDeviation, "STDDEV"),
         ];
