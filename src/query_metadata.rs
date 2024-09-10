@@ -70,6 +70,7 @@ impl QueryMetadata {
         }
     }
 
+    #[must_use]
     pub fn create_data_extraction_query(
         &self,
         quote_style: Option<char>, // e.g. "'" for PostgreSQL, "`" for MySQL
@@ -134,6 +135,7 @@ impl QueryMetadata {
         select_statement.to_string()
     }
 
+    #[must_use]
     pub fn create_data_aggregation_query(
         &self,
         quote_style: Option<char>, // e.g. "'" for PostgreSQL, "`" for MySQL
