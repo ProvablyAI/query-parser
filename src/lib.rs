@@ -50,6 +50,14 @@ mod tests {
         for (projection, function) in cases {
             let query = &format!("SELECT {projection} FROM test_db.test_schema.test_table_1");
 
+            let data_aggregation_query = if function == KoronFunction::Median {
+                None
+            } else {
+                Some(format!(
+                    "SELECT CAST({projection} AS TEXT) FROM test_db.test_schema.test_table_1"
+                ))
+            };
+
             let expected = Ok(QueryMetadata {
                 table: sample_tab_ident(),
                 aggregation: Aggregation {
@@ -58,16 +66,16 @@ mod tests {
                     alias: None,
                 },
                 filter: None,
+                data_extraction_query: String::from(
+                    "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+                ),
+                data_aggregation_query,
             });
             assert_eq!(
-                QueryMetadata::parse(query),
+                QueryMetadata::parse(query, None),
                 expected,
                 "\nfailed for aggregation {projection}",
             );
-            assert_eq!(
-                expected.unwrap().create_data_extraction_query(None),
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1"
-            )
         }
     }
 
@@ -78,8 +86,14 @@ mod tests {
             table: sample_tab_ident(),
             aggregation: sample_sum(),
             filter: None,
+            data_extraction_query: String::from(
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            data_aggregation_query: Some(String::from(
+                "SELECT CAST(SUM(test_column_2) AS TEXT) FROM test_db.test_schema.test_table_1",
+            )),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -89,8 +103,10 @@ mod tests {
             table: sample_tab_ident(),
             aggregation: sample_sum(),
             filter: None,
+            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
+            data_aggregation_query: Some(String::from("SELECT CAST((((SUM(test_column_2)))) AS TEXT) FROM test_db.test_schema.test_table_1")),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -100,8 +116,10 @@ mod tests {
             table: sample_tab_ident(),
             aggregation: sample_sum(),
             filter: None,
+            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
+            data_aggregation_query: Some(String::from("SELECT CAST(SUM((((test_column_2)))) AS TEXT) FROM test_db.test_schema.test_table_1")),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -115,8 +133,10 @@ mod tests {
                 alias: Some("s".to_string()),
             },
             filter: None,
+            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
+            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) AS s FROM test_db.test_schema.test_table_1")),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -126,8 +146,10 @@ mod tests {
             table: sample_tab_ident(),
             aggregation: sample_sum(),
             filter: None,
+            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
+            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) FROM test_db.test_schema.test_table_1 AS t")),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -137,8 +159,14 @@ mod tests {
             table: sample_tab_ident(),
             aggregation: sample_sum(),
             filter: None,
+            data_extraction_query: String::from(
+                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
+            ),
+            data_aggregation_query: Some(String::from(
+                "SELECT CAST(sum(test_column_2) AS TEXT) FROM test_db.test_schema.test_table_1",
+            )),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -147,7 +175,7 @@ mod tests {
         let expected = Err(unsupported!(
             "unrecognized or unsupported function: \"SUM\".".to_string()
         ));
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -161,8 +189,10 @@ mod tests {
                 alias: Some("s".to_string()),
             },
             filter: None,
+            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
+            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) AS S FROM test_db.test_schema.test_table_1")),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -176,8 +206,10 @@ mod tests {
                 alias: Some("S".to_string()),
             },
             filter: None,
+            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
+            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) AS \"S\" FROM test_db.test_schema.test_table_1")),
         });
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -194,7 +226,7 @@ mod tests {
                      the table that's listed in the FROM clause ({extracted_alias}).",
             )));
             assert_eq!(
-                QueryMetadata::parse(query),
+                QueryMetadata::parse(query, None),
                 expected,
                 "\nfailed for query {query:?}",
             );
@@ -214,7 +246,7 @@ mod tests {
                      the table that's listed in the FROM clause (test_db.test_schema.test_table_1).",
                 )));
             assert_eq!(
-                QueryMetadata::parse(query),
+                QueryMetadata::parse(query, None),
                 expected,
                 "\nfailed for query {query:?}",
             );
@@ -233,7 +265,7 @@ mod tests {
                      the table that's listed in the FROM clause (t).",
             )));
             assert_eq!(
-                QueryMetadata::parse(query),
+                QueryMetadata::parse(query, None),
                 expected,
                 "\nfailed for query {query:?}",
             );
@@ -246,14 +278,14 @@ mod tests {
         let expected = Err(malformed_query!(
             "sql parser error: Expected identifier, found: EOF".to_string()
         ));
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
     fn table_name_too_many_name_parts() {
         let query = "SELECT SUM(test_column_2) FROM x.test_db.test_schema.test_table_1";
         let expected = Err(internal!("found too many ident in table name (i.e., x.test_db.test_schema.test_table_1) in query AST.".to_string()));
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -261,7 +293,7 @@ mod tests {
         let query = "SELECT SUM(x.test_db.test_schema.test_table_1.test_column_2) FROM test_db.test_schema.test_table_1";
         let expected = Err(internal!("found too many ident in column name (i.e., x.test_db.test_schema.test_table_1.test_column_2)."
                 .to_string()));
-        assert_eq!(QueryMetadata::parse(query), expected);
+        assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
@@ -281,7 +313,7 @@ mod tests {
             let query = &format!("SELECT {projection} FROM test_db.test_schema.test_table_1");
             let expected = Err(malformed_query!(reason.to_string()));
             assert_eq!(
-                QueryMetadata::parse(query),
+                QueryMetadata::parse(query, None),
                 expected,
                 "\nfailed for aggregation {projection}",
             );
@@ -490,7 +522,7 @@ mod tests {
         for (query, reason) in cases {
             let expected = Err(unsupported!(reason.to_string()));
             assert_eq!(
-                QueryMetadata::parse(query),
+                QueryMetadata::parse(query, None),
                 expected,
                 "\nfailed for query {query:?}",
             );
@@ -740,16 +772,6 @@ mod tests {
                 let query = &format!("{query} WHERE {selection}");
                 let mut aggregation = sample_sum();
                 aggregation.function = enum_fn;
-                let expected = Ok(QueryMetadata {
-                    table: sample_tab_ident(),
-                    aggregation,
-                    filter: Some(filter.clone()),
-                });
-                assert_eq!(
-                    QueryMetadata::parse(query),
-                    expected,
-                    "\nfailed for selection {selection:?}",
-                );
                 let expected_query = if &filter.column == "test_column_2" {
                     "SELECT test_column_2 FROM test_db.test_schema.test_table_1".to_string()
                 } else {
@@ -758,10 +780,30 @@ mod tests {
                         filter.column
                     )
                 };
+                let expected = QueryMetadata {
+                    table: sample_tab_ident(),
+                    aggregation,
+                    filter: Some(filter.clone()),
+                    data_extraction_query: expected_query,
+                    data_aggregation_query: None,
+                };
+                let result = QueryMetadata::parse(query, None).unwrap();
                 assert_eq!(
-                    expected.unwrap().create_data_extraction_query(None),
-                    expected_query
-                )
+                    result.aggregation, expected.aggregation,
+                    "\nfailed for selection {selection:?}",
+                );
+                assert_eq!(
+                    result.table, expected.table,
+                    "\nfailed for selection {selection:?}",
+                );
+                assert_eq!(
+                    result.filter, expected.filter,
+                    "\nfailed for selection {selection:?}",
+                );
+                assert_eq!(
+                    result.data_extraction_query, expected.data_extraction_query,
+                    "\nfailed for selection {selection:?}",
+                );
             }
         };
 
