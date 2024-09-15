@@ -1,7 +1,7 @@
 use std::fmt::{self, Display};
 
 use serde::{Deserialize, Serialize};
-use sqlparser::ast;
+use sqlparser::ast::{self};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::{
@@ -102,6 +102,10 @@ impl Aggregation {
             match &case_fold_identifier(unqualified_name)[..] {
                 "sum" => return only_column_arg(KoronFunction::Sum),
                 "count" => return only_column_arg(KoronFunction::Count),
+                "avg" => return only_column_arg(KoronFunction::Average),
+                "median" => return only_column_arg(KoronFunction::Median),
+                "variance" => return only_column_arg(KoronFunction::Variance),
+                "stddev" => return only_column_arg(KoronFunction::StandardDeviation),
                 _ => (),
             }
         }
@@ -174,13 +178,25 @@ pub enum KoronFunction {
     /// The `count` aggregation function.
     #[default]
     Count,
+    /// The `average` aggregation function.
+    Average,
+    /// The `median` aggregation function.
+    Median,
+    /// The `variance` aggregation function.
+    Variance,
+    /// The `stddev` aggregation function.
+    StandardDeviation,
 }
 
 impl Display for KoronFunction {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Sum => write!(f, "Sum"),
-            Self::Count => write!(f, "Count"),
+            Self::Sum => write!(f, "SUM"),
+            Self::Count => write!(f, "COUNT"),
+            Self::Average => write!(f, "AVG"),
+            Self::Median => write!(f, "MEDIAN"),
+            Self::Variance => write!(f, "VARIANCE"),
+            Self::StandardDeviation => write!(f, "STDDEV"),
         }
     }
 }
@@ -191,7 +207,14 @@ mod tests {
 
     #[test]
     fn koron_fn_display() {
-        let cases = [(KoronFunction::Count, "Count"), (KoronFunction::Sum, "Sum")];
+        let cases = [
+            (KoronFunction::Count, "COUNT"),
+            (KoronFunction::Sum, "SUM"),
+            (KoronFunction::Variance, "VARIANCE"),
+            (KoronFunction::Median, "MEDIAN"),
+            (KoronFunction::Average, "AVG"),
+            (KoronFunction::StandardDeviation, "STDDEV"),
+        ];
         for (koron_fn, expected) in cases {
             assert_eq!(koron_fn.to_string(), expected.to_string());
         }
