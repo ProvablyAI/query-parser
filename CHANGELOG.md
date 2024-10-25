@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [3.0.0](https://github.com/ProvablyAI/query-parser/compare/v2.0.0...v3.0.0) - 2024-10-25
+
+### Added
+
+- min & max support ([#13](https://github.com/ProvablyAI/query-parser/pull/13))
+
 ## [2.0.0](https://github.com/KryptonZK/query-parser/compare/v1.0.2...v2.0.0) - 2024-09-15
 
 ### Other
