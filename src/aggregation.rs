@@ -106,6 +106,8 @@ impl Aggregation {
                 "median" => return only_column_arg(KoronFunction::Median),
                 "variance" => return only_column_arg(KoronFunction::Variance),
                 "stddev" => return only_column_arg(KoronFunction::StandardDeviation),
+                "min" => return only_column_arg(KoronFunction::Min),
+                "max" => return only_column_arg(KoronFunction::Max),
                 _ => (),
             }
         }
@@ -186,6 +188,10 @@ pub enum KoronFunction {
     Variance,
     /// The `stddev` aggregation function.
     StandardDeviation,
+    /// The `min` aggregation function.
+    Min,
+    /// The `max` aggregation function.
+    Max,
 }
 
 impl Display for KoronFunction {
@@ -197,6 +203,8 @@ impl Display for KoronFunction {
             Self::Median => write!(f, "MEDIAN"),
             Self::Variance => write!(f, "VARIANCE"),
             Self::StandardDeviation => write!(f, "STDDEV"),
+            Self::Min => write!(f, "MIN"),
+            Self::Max => write!(f, "MAX"),
         }
     }
 }
@@ -214,6 +222,8 @@ mod tests {
             (KoronFunction::Median, "MEDIAN"),
             (KoronFunction::Average, "AVG"),
             (KoronFunction::StandardDeviation, "STDDEV"),
+            (KoronFunction::Min, "MIN"),
+            (KoronFunction::Max, "MAX"),
         ];
         for (koron_fn, expected) in cases {
             assert_eq!(koron_fn.to_string(), expected.to_string());

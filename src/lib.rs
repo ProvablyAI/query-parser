@@ -45,6 +45,8 @@ mod tests {
             ("MEDIAN(test_column_2)", KoronFunction::Median),
             ("VARIANCE(test_column_2)", KoronFunction::Variance),
             ("STDDEV(test_column_2)", KoronFunction::StandardDeviation),
+            ("MIN(test_column_2)", KoronFunction::Min),
+            ("MAX(test_column_2)", KoronFunction::Max),
         ];
 
         for (projection, function) in cases {
@@ -505,14 +507,6 @@ mod tests {
                 "test_column_2 < test_column_3. Only comparisons between a column and a constant are supported.",
             ),
             // Unsupported functions
-            (
-                "SELECT MIN(test_column_2) FROM test_db.test_schema.test_table_1;",
-                "unrecognized or unsupported function: MIN."
-            ),
-            (
-                "SELECT MAX(test_column_2) FROM test_db.test_schema.test_table_1;",
-                "unrecognized or unsupported function: MAX."
-            ),
             (
                 "SELECT KTHELEMENT(test_column_2, 3) FROM test_db.test_schema.test_table_1;",
                 "unrecognized or unsupported function: KTHELEMENT."
