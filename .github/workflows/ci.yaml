@@ -13,7 +13,7 @@ env:
 jobs:
   rustfmt:
     name: Check Style
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     permissions:
       contents: read
@@ -35,7 +35,7 @@ jobs:
 
   clippy:
     name: Run Clippy
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     permissions:
       contents: read
@@ -58,7 +58,7 @@ jobs:
 
   test:
     name: Run Tests
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     permissions:
       contents: read
