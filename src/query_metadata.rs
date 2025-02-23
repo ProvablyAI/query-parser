@@ -139,7 +139,7 @@ impl QueryMetadata {
                 for aggregation in aggregations {
                     match &aggregation.column {
                         aggregation::Column::Name(name) => extraction_query_projection
-                            .push(Self::build_select_item(&name, &quote_style)),
+                            .push(Self::build_select_item(name, &quote_style)),
                         aggregation::Column::Wildcard => {
                             return vec![SelectItem::Wildcard(WildcardAdditionalOptions {
                                 opt_exclude: None,
