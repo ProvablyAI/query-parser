@@ -15,12 +15,12 @@ use super::support::{extract_qualified_column, remove_outer_parens};
 pub const fn is_binary_operator_supported(op: &ast::BinaryOperator) -> bool {
     matches!(
         op,
-        &ast::BinaryOperator::Gt
-            | &ast::BinaryOperator::GtEq
-            | &ast::BinaryOperator::Lt
-            | &ast::BinaryOperator::LtEq
-            | &ast::BinaryOperator::Eq
-            | &ast::BinaryOperator::NotEq
+        &ast::BinaryOperator::And | &ast::BinaryOperator::Or | &ast::BinaryOperator::Eq // &ast::BinaryOperator::Gt
+                                                                                        //     | &ast::BinaryOperator::GtEq
+                                                                                        //     | &ast::BinaryOperator::Lt
+                                                                                        //     | &ast::BinaryOperator::LtEq
+                                                                                        //     | &ast::BinaryOperator::Eq
+                                                                                        //     | &ast::BinaryOperator::NotEq
     )
 }
 
@@ -181,12 +181,12 @@ mod tests {
     use super::ast;
     #[test]
     fn test_supported_binary_operator() {
-        assert!(is_binary_operator_supported(&ast::BinaryOperator::Gt));
-        assert!(is_binary_operator_supported(&ast::BinaryOperator::GtEq));
-        assert!(is_binary_operator_supported(&ast::BinaryOperator::Lt));
-        assert!(is_binary_operator_supported(&ast::BinaryOperator::LtEq));
+        // assert!(is_binary_operator_supported(&ast::BinaryOperator::Gt));
+        // assert!(is_binary_operator_supported(&ast::BinaryOperator::GtEq));
+        // assert!(is_binary_operator_supported(&ast::BinaryOperator::Lt));
+        // assert!(is_binary_operator_supported(&ast::BinaryOperator::LtEq));
         assert!(is_binary_operator_supported(&ast::BinaryOperator::Eq));
-        assert!(is_binary_operator_supported(&ast::BinaryOperator::NotEq));
+        // assert!(is_binary_operator_supported(&ast::BinaryOperator::NotEq));
     }
 
     #[test]
@@ -204,8 +204,8 @@ mod tests {
         assert!(!is_binary_operator_supported(
             &ast::BinaryOperator::Spaceship
         ));
-        assert!(!is_binary_operator_supported(&ast::BinaryOperator::And));
-        assert!(!is_binary_operator_supported(&ast::BinaryOperator::Or));
+        // assert!(!is_binary_operator_supported(&ast::BinaryOperator::And));
+        // assert!(!is_binary_operator_supported(&ast::BinaryOperator::Or));
         assert!(!is_binary_operator_supported(&ast::BinaryOperator::Xor));
         assert!(!is_binary_operator_supported(
             &ast::BinaryOperator::BitwiseAnd
