@@ -3,14 +3,16 @@ pub mod aggregation;
 pub mod comparison;
 pub mod destructured_query;
 pub mod error;
-pub mod filter;
+pub mod projection;
 pub mod query_metadata;
+pub mod selection;
 pub mod support;
 pub mod table;
 
 #[cfg(test)]
 mod tests {
 
+    use crate::aggregation::Column;
     use crate::query_metadata::QueryMetadata;
     use crate::table::TabIdent;
     use crate::{internal, malformed_query, unsupported};
@@ -18,12 +20,11 @@ mod tests {
     use super::aggregation::{Aggregation, KoronFunction};
     use super::comparison::CompareOp;
     use super::error::ParseError;
-    use super::filter::Filter;
 
     fn sample_sum() -> Aggregation {
         Aggregation {
             function: KoronFunction::Sum,
-            column: "test_column_2".to_string(),
+            column: Column::Name("test_column_2".to_string()),
             alias: None,
         }
     }
