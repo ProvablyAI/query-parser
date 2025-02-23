@@ -8,7 +8,7 @@ use crate::{
 };
 
 use serde::{Deserialize, Serialize};
-use sqlparser::ast;
+use sqlparser::ast::{self, BinaryOperator, Expr};
 use utoipa::{IntoParams, ToSchema};
 
 use crate::unsupported;
@@ -24,20 +24,58 @@ impl<'a> FilterExtractor<'a> {
         }
     }
 
-    pub(crate) fn extract(&self, selection: &ast::Expr) -> Result<Filter, ParseError> {
+    pub(crate) fn extract(&self, selection: &ast::Expr) -> Result<Selection, ParseError> {
         let selection = remove_outer_parens(selection);
-        match selection {
+
+        let mut filters: Vec<Filter> = Vec::new();
+        let mut logical_op: Option<LogicalOperator> = None;
+
+        fn traverse(
+            filter_extractor: &FilterExtractor,
+            expr: &Expr,
+            filters: &mut Vec<Filter>,
+            logical_op: &mut Option<LogicalOperator>,
+        ) -> Result<(), ParseError> {
+            match expr {
+                Expr::BinaryOp { left, op, right } => {
+                    if let Some(logical) = matches_logical_operator(op) {
+                        if logical_op.as_ref().is_some_and(|op| op != &logical) {
+                            return Err(unsupported!(format!(
+                                "unsupported expression in the WHERE clause, can't use different logical operator."
+                            )));
+                        }
+
+                        *logical_op = Some(logical);
+                        traverse(filter_extractor, left, filters, logical_op)?;
+                        traverse(filter_extractor, right, filters, logical_op)?;
+                    } else {
+                        filters.push(filter_extractor.handle_single(expr)?);
+                    }
+                }
+                _ => filters.push(filter_extractor.handle_single(expr)?),
+            }
+            Ok(())
+        }
+
+        traverse(self, selection, &mut filters, &mut logical_op)?;
+
+        Ok(Selection {
+            filters,
+            operation: logical_op,
+        })
+    }
+
+    fn handle_single(&self, expr: &Expr) -> Result<Filter, ParseError> {
+        match expr {
             ast::Expr::BinaryOp { left, op, right } => {
-                self.extract_binary_comparison(selection, left, op, right)
+                self.extract_binary_comparison(expr, left, op, right)
             }
             ast::Expr::IsNull(op)
-            | ast::Expr::IsNotNull(op)
+            // | ast::Expr::IsNotNull(op)
             | ast::Expr::IsTrue(op)
-            | ast::Expr::IsNotTrue(op)
-            | ast::Expr::IsFalse(op)
-            | ast::Expr::IsNotFalse(op) => self.extract_unary_comparison(selection, op),
+            | ast::Expr::IsFalse(op) => self.extract_unary_comparison(expr, op),
             _ => Err(unsupported!(format!(
-                "unsupported expression in the WHERE clause: {selection}."
+                "unsupported expression in the WHERE clause: {expr}."
             ))),
         }
     }
@@ -136,6 +174,15 @@ impl<'a> FilterExtractor<'a> {
     }
 }
 
+/// Contains information related to the filters applied in the query parsed.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema, IntoParams)]
+pub struct Selection {
+    /// Filter applied contained in the query.
+    pub filters: Vec<Filter>,
+    /// Operator applied to the filters.
+    pub operation: Option<LogicalOperator>,
+}
+
 /// Contains information related to the filter applied in the query parsed.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema, IntoParams)]
 pub struct Filter {
@@ -143,4 +190,20 @@ pub struct Filter {
     pub column: String,
     /// Operation applied to the column.
     pub comparison: CompareOp,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema)]
+#[serde(tag = "type")]
+pub enum LogicalOperator {
+    And,
+    #[default]
+    Or,
+}
+
+const fn matches_logical_operator(op: &BinaryOperator) -> Option<LogicalOperator> {
+    match op {
+        BinaryOperator::And => Some(LogicalOperator::And),
+        BinaryOperator::Or => Some(LogicalOperator::Or),
+        _ => None,
+    }
 }
