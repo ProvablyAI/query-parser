@@ -18,77 +18,80 @@ use super::support::{case_fold_identifier, extract_qualified_column, remove_oute
 pub struct Aggregation {
     /// The function used as aggregator of column's values.
     pub function: KoronFunction,
-    /// The name of the column on which the function is executed.
-    pub column: String,
+    /// The name of the column on which the function is executed. If it is None, it is a Wildcard.
+    pub column: Column,
     /// The alias that's assigned to the result of the function: `function(column) AS alias`.
     pub alias: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema)]
+pub enum Column {
+    Name(String),
+    #[default]
+    Wildcard,
 }
 
 impl Aggregation {
     pub(crate) fn extract(
         from_clause_identifier: FromClauseIdentifier<'_>,
-        projection: &[ast::SelectItem],
-    ) -> Result<Self, ParseError> {
+        exprs: Vec<(&ast::Expr, Option<String>)>,
+    ) -> Result<Vec<Self>, ParseError> {
         let multiple_aggregations = || {
-            Err(unsupported!("the SELECT clause must contain exactly one aggregation / analytic function. Nothing else is accepted.".to_string()))
+            Err(unsupported!("If the SELECT clause contains an aggregation / analytic function, it must contains only aggregations / analytic functions.".to_string()))
         };
-        //check if single operation in the projection
-        let (expr, alias) = match projection {
-            [ast::SelectItem::UnnamedExpr(expr)] => (expr, None),
-            [ast::SelectItem::ExprWithAlias { expr, alias }] => {
-                (expr, Some(case_fold_identifier(alias)))
-            }
-            _ => {
+
+        let mut aggregations: Vec<Self> = Vec::new();
+        for (expr, alias) in exprs {
+            //remove outer parens if any and check if the contained expression is a single function
+            let ast::Expr::Function(function) = remove_outer_parens(expr) else {
                 return multiple_aggregations();
+            };
+
+            //destructure function
+            let ast::Function {
+                name,
+                args,
+                over,
+                distinct,
+                special: _,
+                order_by,
+                filter,
+                null_treatment,
+            } = function;
+            if over.is_some() {
+                return Err(unsupported!("window functions (OVER).".to_string()));
             }
-        };
-        //remove outer parens if any and check if the contained expression is a single function
-        let ast::Expr::Function(function) = remove_outer_parens(expr) else {
-            return multiple_aggregations();
-        };
+            if *distinct {
+                return Err(unsupported!("DISTINCT.".to_string()));
+            }
+            if !order_by.is_empty() {
+                return Err(unsupported!("ORDER BY.".to_string()));
+            }
+            if filter.is_some() {
+                return Err(unsupported!("FILTER.".to_string()));
+            }
+            if null_treatment.is_some() {
+                return Err(unsupported!("IGNORE NULLS.".to_string()));
+            }
+            //check if it is a supported function
+            let (function, column) =
+                Self::validate_function_and_arguments(from_clause_identifier, name, args)?;
 
-        //destructure function
-        let ast::Function {
-            name,
-            args,
-            over,
-            distinct,
-            special: _,
-            order_by,
-            filter,
-            null_treatment,
-        } = function;
-        if over.is_some() {
-            return Err(unsupported!("window functions (OVER).".to_string()));
+            aggregations.push(Self {
+                function,
+                column,
+                alias,
+            });
         }
-        if *distinct {
-            return Err(unsupported!("DISTINCT.".to_string()));
-        }
-        if !order_by.is_empty() {
-            return Err(unsupported!("ORDER BY.".to_string()));
-        }
-        if filter.is_some() {
-            return Err(unsupported!("FILTER.".to_string()));
-        }
-        if null_treatment.is_some() {
-            return Err(unsupported!("IGNORE NULLS.".to_string()));
-        }
-        //check if it is a supported function
-        let (function, column) =
-            Self::validate_function_and_arguments(from_clause_identifier, name, args)?;
 
-        Ok(Self {
-            function,
-            column,
-            alias,
-        })
+        Ok(aggregations)
     }
 
     fn validate_function_and_arguments(
         from_clause_identifier: FromClauseIdentifier<'_>,
         function_name: &ast::ObjectName,
         args: &[ast::FunctionArg],
-    ) -> Result<(KoronFunction, String), ParseError> {
+    ) -> Result<(KoronFunction, Column), ParseError> {
         //closure that extracts column information from the statement
         let only_column_arg = |function| {
             let column =
@@ -103,9 +106,6 @@ impl Aggregation {
                 "sum" => return only_column_arg(KoronFunction::Sum),
                 "count" => return only_column_arg(KoronFunction::Count),
                 "avg" => return only_column_arg(KoronFunction::Average),
-                "median" => return only_column_arg(KoronFunction::Median),
-                "variance" => return only_column_arg(KoronFunction::Variance),
-                "stddev" => return only_column_arg(KoronFunction::StandardDeviation),
                 "min" => return only_column_arg(KoronFunction::Min),
                 "max" => return only_column_arg(KoronFunction::Max),
                 _ => (),
@@ -120,7 +120,7 @@ impl Aggregation {
         from_clause_identifier: FromClauseIdentifier<'_>,
         function_name: &ast::ObjectName,
         args: &[ast::FunctionArg],
-    ) -> Result<String, ParseError> {
+    ) -> Result<Column, ParseError> {
         //currently only functions that takes as input a single column are supported (i.e. a single argument)
         match args {
             [arg] => {
@@ -151,20 +151,33 @@ impl Aggregation {
         function_name: &ast::ObjectName,
         arg_expr: &ast::FunctionArgExpr,
         which_arg: &str,
-    ) -> Result<String, ParseError> {
-        if let ast::FunctionArgExpr::Expr(expr) = arg_expr {
-            match remove_outer_parens(expr) {
-                ast::Expr::Identifier(ident) => return Ok(case_fold_identifier(ident)),
+    ) -> Result<Column, ParseError> {
+        match arg_expr {
+            ast::FunctionArgExpr::Expr(expr) => match remove_outer_parens(expr) {
+                ast::Expr::Identifier(ident) => {
+                    return Ok(Column::Name(case_fold_identifier(ident)))
+                }
                 compound_identifier @ ast::Expr::CompoundIdentifier(name_parts) => {
-                    return extract_qualified_column(
+                    let col_name = extract_qualified_column(
                         from_clause_identifier,
                         compound_identifier,
                         name_parts,
-                    );
+                    )?;
+                    return Ok(Column::Name(col_name));
                 }
                 _ => (),
+            },
+            ast::FunctionArgExpr::Wildcard => {
+                let ast::ObjectName(name_parts) = function_name;
+                if let [unqualified_name] = &name_parts[..] {
+                    if &case_fold_identifier(unqualified_name)[..] == "count" {
+                        return Ok(Column::Wildcard);
+                    }
+                }
             }
+            _ => (),
         }
+
         Err(unsupported!(format!(
                 "only a column name is supported as the {which_arg}{space}argument of the {function_name} function.",
                 space = if which_arg.is_empty() { "" } else { " " },
@@ -182,12 +195,6 @@ pub enum KoronFunction {
     Count,
     /// The `average` aggregation function.
     Average,
-    /// The `median` aggregation function.
-    Median,
-    /// The `variance` aggregation function.
-    Variance,
-    /// The `stddev` aggregation function.
-    StandardDeviation,
     /// The `min` aggregation function.
     Min,
     /// The `max` aggregation function.
@@ -200,9 +207,6 @@ impl Display for KoronFunction {
             Self::Sum => write!(f, "SUM"),
             Self::Count => write!(f, "COUNT"),
             Self::Average => write!(f, "AVG"),
-            Self::Median => write!(f, "MEDIAN"),
-            Self::Variance => write!(f, "VARIANCE"),
-            Self::StandardDeviation => write!(f, "STDDEV"),
             Self::Min => write!(f, "MIN"),
             Self::Max => write!(f, "MAX"),
         }
@@ -218,10 +222,7 @@ mod tests {
         let cases = [
             (KoronFunction::Count, "COUNT"),
             (KoronFunction::Sum, "SUM"),
-            (KoronFunction::Variance, "VARIANCE"),
-            (KoronFunction::Median, "MEDIAN"),
             (KoronFunction::Average, "AVG"),
-            (KoronFunction::StandardDeviation, "STDDEV"),
             (KoronFunction::Min, "MIN"),
             (KoronFunction::Max, "MAX"),
         ];
