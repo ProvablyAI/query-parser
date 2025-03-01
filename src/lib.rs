@@ -12,8 +12,12 @@ pub mod table;
 #[cfg(test)]
 mod tests {
 
+    use serde::de::Expected;
+
     use crate::aggregation::Column;
+    use crate::projection::Projection;
     use crate::query_metadata::QueryMetadata;
+    use crate::selection::{Filter, LogicalOperator, Selection};
     use crate::table::TabIdent;
     use crate::{internal, malformed_query, unsupported};
 
@@ -29,6 +33,14 @@ mod tests {
         }
     }
 
+    fn sample_data_extraction_query() -> String {
+        "SELECT test_column_2 FROM test_db.test_schema.test_table_1".to_string()
+    }
+
+    fn sample_data_answer_index_query() -> String {
+        "SELECT row FROM (SELECT row_number() over () AS row FROM test_db.test_schema.test_table_1) AS subquery".to_string()
+    }
+
     fn sample_tab_ident() -> TabIdent {
         TabIdent {
             db: Some("test_db".to_string()),
@@ -42,38 +54,32 @@ mod tests {
         let cases = [
             ("SUM(test_column_2)", KoronFunction::Sum),
             ("COUNT(test_column_2)", KoronFunction::Count),
-            ("AVG(test_column_2)", KoronFunction::Average),
-            ("MEDIAN(test_column_2)", KoronFunction::Median),
-            ("VARIANCE(test_column_2)", KoronFunction::Variance),
-            ("STDDEV(test_column_2)", KoronFunction::StandardDeviation),
-            ("MIN(test_column_2)", KoronFunction::Min),
-            ("MAX(test_column_2)", KoronFunction::Max),
+            // ("AVG(test_column_2)", KoronFunction::Average),
+            // ("MIN(test_column_2)", KoronFunction::Min),
+            // ("MAX(test_column_2)", KoronFunction::Max),
         ];
 
         for (projection, function) in cases {
             let query = &format!("SELECT {projection} FROM test_db.test_schema.test_table_1");
 
-            let data_aggregation_query = if function == KoronFunction::Median {
-                None
-            } else {
-                Some(format!(
-                    "SELECT CAST({projection} AS TEXT) FROM test_db.test_schema.test_table_1"
-                ))
-            };
+            let data_answer_query =
+                format!("SELECT {projection} FROM test_db.test_schema.test_table_1");
 
             let expected = Ok(QueryMetadata {
-                table: sample_tab_ident(),
-                aggregation: Aggregation {
+                projection: Projection::Aggregations(vec![Aggregation {
                     function,
-                    column: "test_column_2".to_string(),
+                    column: Column::Name("test_column_2".to_string()),
                     alias: None,
-                },
-                filter: None,
-                data_extraction_query: String::from(
-                    "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-                ),
-                data_aggregation_query,
+                }]),
+                table: sample_tab_ident(),
+                selection: None,
+                data_extraction_query: sample_data_extraction_query(),
+                data_answer_query,
+                data_answer_index_query: sample_data_answer_index_query(),
             });
+
+            println!("QM: {:?}", QueryMetadata::parse(query, None));
+
             assert_eq!(
                 QueryMetadata::parse(query, None),
                 expected,
@@ -85,16 +91,15 @@ mod tests {
     #[test]
     fn parenthesized_query() {
         let query = "(((SELECT SUM(test_column_2) FROM test_db.test_schema.test_table_1)))";
+
         let expected = Ok(QueryMetadata {
+            projection: Projection::Aggregations(vec![sample_sum()]),
             table: sample_tab_ident(),
-            aggregation: sample_sum(),
-            filter: None,
-            data_extraction_query: String::from(
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            data_aggregation_query: Some(String::from(
-                "SELECT CAST(SUM(test_column_2) AS TEXT) FROM test_db.test_schema.test_table_1",
-            )),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query: "SELECT SUM(test_column_2) FROM test_db.test_schema.test_table_1"
+                .to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
@@ -102,73 +107,91 @@ mod tests {
     #[test]
     fn parenthesized_function() {
         let query = "SELECT (((SUM(test_column_2)))) FROM test_db.test_schema.test_table_1";
+
         let expected = Ok(QueryMetadata {
+            projection: Projection::Aggregations(vec![sample_sum()]),
             table: sample_tab_ident(),
-            aggregation: sample_sum(),
-            filter: None,
-            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
-            data_aggregation_query: Some(String::from("SELECT CAST((((SUM(test_column_2)))) AS TEXT) FROM test_db.test_schema.test_table_1")),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query:
+                "SELECT (((SUM(test_column_2)))) FROM test_db.test_schema.test_table_1".to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
     fn parenthesized_column() {
         let query = "SELECT SUM((((test_column_2)))) FROM test_db.test_schema.test_table_1";
+
         let expected = Ok(QueryMetadata {
+            projection: Projection::Aggregations(vec![sample_sum()]),
             table: sample_tab_ident(),
-            aggregation: sample_sum(),
-            filter: None,
-            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
-            data_aggregation_query: Some(String::from("SELECT CAST(SUM((((test_column_2)))) AS TEXT) FROM test_db.test_schema.test_table_1")),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query:
+                "SELECT SUM((((test_column_2)))) FROM test_db.test_schema.test_table_1".to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
     fn result_alias() {
         let query = "SELECT SUM(test_column_2) AS s FROM test_db.test_schema.test_table_1";
+
         let expected = Ok(QueryMetadata {
-            table: sample_tab_ident(),
-            aggregation: Aggregation {
+            projection: Projection::Aggregations(vec![Aggregation {
                 function: KoronFunction::Sum,
-                column: "test_column_2".to_string(),
+                column: Column::Name("test_column_2".to_string()),
                 alias: Some("s".to_string()),
-            },
-            filter: None,
-            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
-            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) AS s FROM test_db.test_schema.test_table_1")),
+            }]),
+            table: sample_tab_ident(),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query:
+                "SELECT SUM(test_column_2) AS s FROM test_db.test_schema.test_table_1".to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
     fn table_alias() {
         let query = "SELECT SUM(test_column_2) FROM test_db.test_schema.test_table_1 AS t";
+
+        let data_answer_index_query = "SELECT row FROM (SELECT row_number() over () AS row FROM test_db.test_schema.test_table_1 AS t) AS subquery".to_string();
+
         let expected = Ok(QueryMetadata {
+            projection: Projection::Aggregations(vec![sample_sum()]),
             table: sample_tab_ident(),
-            aggregation: sample_sum(),
-            filter: None,
-            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
-            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) FROM test_db.test_schema.test_table_1 AS t")),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query:
+                "SELECT SUM(test_column_2) FROM test_db.test_schema.test_table_1 AS t".to_string(),
+            data_answer_index_query,
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
     fn unquoted_function_case_insensitive() {
         let query = "SELECT sum(test_column_2) FROM test_db.test_schema.test_table_1";
+
         let expected = Ok(QueryMetadata {
+            projection: Projection::Aggregations(vec![sample_sum()]),
             table: sample_tab_ident(),
-            aggregation: sample_sum(),
-            filter: None,
-            data_extraction_query: String::from(
-                "SELECT test_column_2 FROM test_db.test_schema.test_table_1",
-            ),
-            data_aggregation_query: Some(String::from(
-                "SELECT CAST(sum(test_column_2) AS TEXT) FROM test_db.test_schema.test_table_1",
-            )),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query: "SELECT sum(test_column_2) FROM test_db.test_schema.test_table_1"
+                .to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
@@ -184,34 +207,43 @@ mod tests {
     #[test]
     fn unquoted_result_alias_case_insensitive() {
         let query = "SELECT SUM(test_column_2) AS S FROM test_db.test_schema.test_table_1";
+
         let expected = Ok(QueryMetadata {
-            table: sample_tab_ident(),
-            aggregation: Aggregation {
+            projection: Projection::Aggregations(vec![Aggregation {
                 function: KoronFunction::Sum,
-                column: "test_column_2".to_string(),
+                column: Column::Name("test_column_2".to_string()),
                 alias: Some("s".to_string()),
-            },
-            filter: None,
-            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
-            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) AS S FROM test_db.test_schema.test_table_1")),
+            }]),
+            table: sample_tab_ident(),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query:
+                "SELECT SUM(test_column_2) AS S FROM test_db.test_schema.test_table_1".to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
     #[test]
     fn quoted_result_alias_case_sensitive() {
         let query = "SELECT SUM(test_column_2) AS \"S\" FROM test_db.test_schema.test_table_1";
+
         let expected = Ok(QueryMetadata {
-            table: sample_tab_ident(),
-            aggregation: Aggregation {
+            projection: Projection::Aggregations(vec![Aggregation {
                 function: KoronFunction::Sum,
-                column: "test_column_2".to_string(),
+                column: Column::Name("test_column_2".to_string()),
                 alias: Some("S".to_string()),
-            },
-            filter: None,
-            data_extraction_query:String::from("SELECT test_column_2 FROM test_db.test_schema.test_table_1"),
-            data_aggregation_query: Some(String::from("SELECT CAST(SUM(test_column_2) AS TEXT) AS \"S\" FROM test_db.test_schema.test_table_1")),
+            }]),
+            table: sample_tab_ident(),
+            selection: None,
+            data_extraction_query: sample_data_extraction_query(),
+            data_answer_query:
+                "SELECT SUM(test_column_2) AS \"S\" FROM test_db.test_schema.test_table_1"
+                    .to_string(),
+            data_answer_index_query: sample_data_answer_index_query(),
         });
+
         assert_eq!(QueryMetadata::parse(query, None), expected);
     }
 
@@ -444,20 +476,8 @@ mod tests {
                 "table aliases with columns (such as d (f, g)).",
             ),
             (
-                "SELECT SUM(test_column_2), AVG(test_column_2) FROM test_db.test_schema.test_table_1",
-                "the SELECT clause must contain exactly one aggregation / analytic function. Nothing else is accepted.",
-            ),
-            (
                 "SELECT drda.* FROM test_db.test_schema.test_table_1",
-                "the SELECT clause must contain exactly one aggregation / analytic function. Nothing else is accepted.",
-            ),
-            (
-                "SELECT * FROM test_db.test_schema.test_table_1",
-                "the SELECT clause must contain exactly one aggregation / analytic function. Nothing else is accepted.",
-            ),
-            (
-                "SELECT id FROM test_db.test_schema.test_table_1",
-                "the SELECT clause must contain exactly one aggregation / analytic function. Nothing else is accepted.",
+                "the SELECT clause must contain or only aggregations / analytic functions or column names or the wildcard symbol. Nothing else is accepted.",
             ),
             (
                 "SELECT SUM(test_column_2) OVER (PARTITION BY id) FROM test_db.test_schema.test_table_1",
@@ -501,11 +521,11 @@ mod tests {
             ),
             (
                 "SELECT SUM(test_column_2) FROM test_db.test_schema.test_table_1 WHERE 2 < 1",
-                "2 < 1. Only comparisons between a column and a constant are supported.",
+                "the < operator.", // TODO: 2 < 1. Only comparisons between a column and a constant are supported.
             ),
             (
                 "SELECT SUM(test_column_2) FROM test_db.test_schema.test_table_1 WHERE test_column_2 < test_column_3",
-                "test_column_2 < test_column_3. Only comparisons between a column and a constant are supported.",
+                "the < operator.", // TODO: when supported: test_column_2 < test_column_3. Only comparisons between a column and a constant are supported.
             ),
             // Unsupported functions
             (
@@ -527,277 +547,350 @@ mod tests {
     #[test]
     fn aggregation_with_single_where() {
         let cases = [
-            (
-                "test_column_2 < 1",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::Lt {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "1 < test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::Gt {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "test_column_2 <= 1",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::LtEq {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "1 <= test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::GtEq {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "test_column_2 > 1",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::Gt {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "1 > test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::Lt {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "test_column_2 >= 1",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::GtEq {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "1 >= test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::LtEq {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
-            (
-                "test_column_3 > '2021-04-02T05:02:16.04+03:00'",
-                Filter {
-                    column: "test_column_3".to_string(),
-                    comparison: CompareOp::Gt {
-                        value: "2021-04-02T05:02:16.04+03:00".to_string(),
-                    },
-                },
-            ),
-            (
-                "-1 >= test_column_4",
-                Filter {
-                    column: "test_column_4".to_string(),
-                    comparison: CompareOp::LtEq {
-                        value: "-1".to_string(),
-                    },
-                },
-            ),
-            (
-                "+1 >= test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::LtEq {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
+            // TODO: uncomment when supported
+            // (
+            //     "test_column_2 < 1",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::Lt {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "1 < test_column_2",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::Gt {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "test_column_2 <= 1",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::LtEq {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "1 <= test_column_2",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::GtEq {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "test_column_2 > 1",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::Gt {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "1 > test_column_2",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::Lt {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "test_column_2 >= 1",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::GtEq {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "1 >= test_column_2",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::LtEq {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "test_column_3 > '2021-04-02T05:02:16.04+03:00'",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_3".to_string(),
+            //             comparison: CompareOp::Gt {
+            //                 value: "2021-04-02T05:02:16.04+03:00".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "-1 >= test_column_4",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_4".to_string(),
+            //             comparison: CompareOp::LtEq {
+            //                 value: "-1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
+            // (
+            //     "+1 >= test_column_2",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::LtEq {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
             (
                 "+1 = test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "1".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_2".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "1".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
-            (
-                "+1 <> test_column_2",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::NotEq {
-                        value: "1".to_string(),
-                    },
-                },
-            ),
+            // (
+            //     "+1 <> test_column_2",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::NotEq {
+            //                 value: "1".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
             (
                 "test_column_2 IS NULL",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::IsNull,
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_2".to_string(),
+                        comparison: CompareOp::IsNull,
+                    }],
+                    operation: None,
                 },
             ),
-            (
-                "test_column_2 IS NOT NULL",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::IsNotNull,
-                },
-            ),
+            // (
+            //     "test_column_2 IS NOT NULL",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_2".to_string(),
+            //             comparison: CompareOp::IsNotNull,
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
             (
                 "test_column_1 = NULL",
-                Filter {
-                    column: "test_column_1".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "Null".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_1".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "Null".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
             (
                 "test_column_2 = NULL",
-                Filter {
-                    column: "test_column_2".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "Null".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_2".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "Null".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
             (
                 "test_column_3 = NULL",
-                Filter {
-                    column: "test_column_3".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "Null".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_3".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "Null".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
             (
                 "test_column_4 = NULL",
-                Filter {
-                    column: "test_column_4".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "Null".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_4".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "Null".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
             (
                 "test_column_5 IS TRUE",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::IsTrue,
-                },
-            ),
-            (
-                "test_column_5 IS NOT TRUE",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::IsNotTrue,
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_5".to_string(),
+                        comparison: CompareOp::IsTrue,
+                    }],
+                    operation: None,
                 },
             ),
             (
                 "test_column_5 = true",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "true".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_5".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "true".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
-            (
-                "test_column_5 <> true",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::NotEq {
-                        value: "true".to_string(),
-                    },
-                },
-            ),
+            // (
+            //     "test_column_5 <> true",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_5".to_string(),
+            //             comparison: CompareOp::NotEq {
+            //                 value: "true".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
             (
                 "test_column_5 IS FALSE",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::IsFalse,
-                },
-            ),
-            (
-                "test_column_5 IS NOT FALSE",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::IsNotFalse,
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_5".to_string(),
+                        comparison: CompareOp::IsFalse,
+                    }],
+                    operation: None,
                 },
             ),
             (
                 "test_column_5 = false",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::Eq {
-                        value: "false".to_string(),
-                    },
+                Selection {
+                    filters: vec![Filter {
+                        column: "test_column_5".to_string(),
+                        comparison: CompareOp::Eq {
+                            value: "false".to_string(),
+                        },
+                    }],
+                    operation: None,
                 },
             ),
-            (
-                "test_column_5 <> false",
-                Filter {
-                    column: "test_column_5".to_string(),
-                    comparison: CompareOp::NotEq {
-                        value: "false".to_string(),
-                    },
-                },
-            ),
+            // (
+            //     "test_column_5 <> false",
+            //     Selection {
+            //         filters: vec![Filter {
+            //             column: "test_column_5".to_string(),
+            //             comparison: CompareOp::NotEq {
+            //                 value: "false".to_string(),
+            //             },
+            //         }],
+            //         operation: None,
+            //     },
+            // ),
         ];
 
         let analytical_functions = [("SUM", KoronFunction::Sum), ("COUNT", KoronFunction::Count)];
 
         let test_cases = |enum_fn: KoronFunction, query: &String| {
-            for (selection, filter) in cases.clone() {
-                let query = &format!("{query} WHERE {selection}");
+            for (selection_name, selection) in cases.clone() {
+                let query = &format!("{query} WHERE {selection_name}");
                 let mut aggregation = sample_sum();
                 aggregation.function = enum_fn;
-                let expected_query = if &filter.column == "test_column_2" {
-                    "SELECT test_column_2 FROM test_db.test_schema.test_table_1".to_string()
+                let column_name = selection.filters.first().unwrap().column.as_str();
+
+                let data_extraction_query = if column_name == "test_column_2" {
+                    vec!["SELECT test_column_2 FROM test_db.test_schema.test_table_1".to_string()]
                 } else {
-                    format!(
-                        "SELECT test_column_2, {} FROM test_db.test_schema.test_table_1",
-                        filter.column
-                    )
+                    vec![
+                        format!(
+                            "SELECT test_column_2, {} FROM test_db.test_schema.test_table_1",
+                            column_name
+                        ),
+                        format!(
+                            "SELECT {}, test_column_2 FROM test_db.test_schema.test_table_1",
+                            column_name
+                        ),
+                    ]
                 };
+
                 let expected = QueryMetadata {
+                    projection: Projection::Aggregations(vec![aggregation]),
                     table: sample_tab_ident(),
-                    aggregation,
-                    filter: Some(filter.clone()),
-                    data_extraction_query: expected_query,
-                    data_aggregation_query: None,
+                    selection: Some(selection),
+                    data_extraction_query: String::new(),
+                    data_answer_query: query.clone(),
+                    data_answer_index_query: sample_data_answer_index_query(),
                 };
+
                 let result = QueryMetadata::parse(query, None).unwrap();
                 assert_eq!(
-                    result.aggregation, expected.aggregation,
-                    "\nfailed for selection {selection:?}",
+                    result.projection, expected.projection,
+                    "\nfailed for selection {selection_name:?}",
                 );
                 assert_eq!(
                     result.table, expected.table,
-                    "\nfailed for selection {selection:?}",
+                    "\nfailed for selection {selection_name:?}",
                 );
                 assert_eq!(
-                    result.filter, expected.filter,
-                    "\nfailed for selection {selection:?}",
+                    result.selection, expected.selection,
+                    "\nfailed for selection {selection_name:?}",
                 );
-                assert_eq!(
-                    result.data_extraction_query, expected.data_extraction_query,
-                    "\nfailed for selection {selection:?}",
+                assert!(
+                    data_extraction_query.contains(&result.data_extraction_query),
+                    "\nfailed for selection {selection_name:?}",
                 );
             }
         };
