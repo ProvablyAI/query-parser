@@ -32,11 +32,11 @@ impl Projection {
         for select_item in projection {
             match select_item {
                 ast::SelectItem::Wildcard(_) => return Ok(Self::Wildcard),
-                ast::SelectItem::UnnamedExpr(expr) => exprs.push((expr, None)),
+                ast::SelectItem::UnnamedExpr(expr) => exprs.push((remove_outer_parens(expr), None)),
                 ast::SelectItem::ExprWithAlias { expr, alias } => {
-                    exprs.push((expr, Some(case_fold_identifier(alias))))
+                    exprs.push((remove_outer_parens(expr), Some(case_fold_identifier(alias))));
                 }
-                _ => return unsupported(),
+                ast::SelectItem::QualifiedWildcard(..) => return unsupported(),
             };
         }
 
@@ -61,6 +61,7 @@ pub struct PlainColumn {
 }
 
 impl PlainColumn {
+    #[must_use]
     pub const fn new(column: String, alias: Option<String>) -> Self {
         Self { column, alias }
     }

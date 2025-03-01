@@ -105,9 +105,9 @@ impl Aggregation {
             match &case_fold_identifier(unqualified_name)[..] {
                 "sum" => return only_column_arg(KoronFunction::Sum),
                 "count" => return only_column_arg(KoronFunction::Count),
-                "avg" => return only_column_arg(KoronFunction::Average),
-                "min" => return only_column_arg(KoronFunction::Min),
-                "max" => return only_column_arg(KoronFunction::Max),
+                // "avg" => return only_column_arg(KoronFunction::Average),
+                // "min" => return only_column_arg(KoronFunction::Min),
+                // "max" => return only_column_arg(KoronFunction::Max),
                 _ => (),
             }
         }
@@ -175,7 +175,7 @@ impl Aggregation {
                     }
                 }
             }
-            _ => (),
+            ast::FunctionArgExpr::QualifiedWildcard(_) => (),
         }
 
         Err(unsupported!(format!(
@@ -193,12 +193,12 @@ pub enum KoronFunction {
     /// The `count` aggregation function.
     #[default]
     Count,
-    /// The `average` aggregation function.
-    Average,
-    /// The `min` aggregation function.
-    Min,
-    /// The `max` aggregation function.
-    Max,
+    // /// The `average` aggregation function.
+    // Average,
+    // /// The `min` aggregation function.
+    // Min,
+    // /// The `max` aggregation function.
+    // Max,
 }
 
 impl Display for KoronFunction {
@@ -206,9 +206,9 @@ impl Display for KoronFunction {
         match self {
             Self::Sum => write!(f, "SUM"),
             Self::Count => write!(f, "COUNT"),
-            Self::Average => write!(f, "AVG"),
-            Self::Min => write!(f, "MIN"),
-            Self::Max => write!(f, "MAX"),
+            // Self::Average => write!(f, "AVG"),
+            // Self::Min => write!(f, "MIN"),
+            // Self::Max => write!(f, "MAX"),
         }
     }
 }
@@ -222,9 +222,9 @@ mod tests {
         let cases = [
             (KoronFunction::Count, "COUNT"),
             (KoronFunction::Sum, "SUM"),
-            (KoronFunction::Average, "AVG"),
-            (KoronFunction::Min, "MIN"),
-            (KoronFunction::Max, "MAX"),
+            // (KoronFunction::Average, "AVG"),
+            // (KoronFunction::Min, "MIN"),
+            // (KoronFunction::Max, "MAX"),
         ];
         for (koron_fn, expected) in cases {
             assert_eq!(koron_fn.to_string(), expected.to_string());

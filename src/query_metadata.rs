@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fmt::{self, Display},
     vec,
 };
@@ -74,13 +75,17 @@ impl QueryMetadata {
         let data_extraction_query = Self::create_data_extraction_query(
             &projection_parsed,
             &table_name,
-            &selection_parsed,
+            selection_parsed.as_ref(),
             quote_style,
         );
 
-        let data_answer_query = Self::create_data_answer_query(projection, from, selection)?;
-        let data_answer_index_query =
-            Self::create_data_answer_index_query(from, &selection_parsed, selection, quote_style)?;
+        let data_answer_query = Self::create_data_answer_query(projection, from, selection);
+        let data_answer_index_query = Self::create_data_answer_index_query(
+            from,
+            selection_parsed.as_ref(),
+            selection,
+            quote_style,
+        );
 
         Ok(Self {
             projection: projection_parsed,
@@ -106,7 +111,7 @@ impl QueryMetadata {
     pub fn create_data_extraction_query(
         projection: &Projection,
         table: &TabIdent,
-        selection: &Option<Selection>,
+        selection: Option<&Selection>,
         quote_style: Option<char>, // e.g. "'" for PostgreSQL, "`" for MySQL
     ) -> String {
         let extraction_query_projection =
@@ -129,7 +134,7 @@ impl QueryMetadata {
 
     fn build_projection_of_extraction_query(
         projection: &Projection,
-        selection: &Option<Selection>,
+        selection: Option<&Selection>,
         quote_style: Option<char>, // e.g. "'" for PostgreSQL, "`" for MySQL
     ) -> Vec<SelectItem> {
         let mut extraction_query_projection = Vec::default();
@@ -139,7 +144,7 @@ impl QueryMetadata {
                 for aggregation in aggregations {
                     match &aggregation.column {
                         aggregation::Column::Name(name) => extraction_query_projection
-                            .push(Self::build_select_item(name, &quote_style)),
+                            .push(Self::build_select_item(name, quote_style)),
                         aggregation::Column::Wildcard => {
                             return vec![SelectItem::Wildcard(WildcardAdditionalOptions {
                                 opt_exclude: None,
@@ -154,7 +159,7 @@ impl QueryMetadata {
             Projection::PlainColumns(plain_columns) => extraction_query_projection.extend(
                 plain_columns
                     .iter()
-                    .map(|col| Self::build_select_item(&col.column, &quote_style)),
+                    .map(|col| Self::build_select_item(&col.column, quote_style)),
             ),
             Projection::Wildcard => {
                 return vec![SelectItem::Wildcard(WildcardAdditionalOptions {
@@ -169,27 +174,30 @@ impl QueryMetadata {
         if let Some(selection) = selection {
             extraction_query_projection.extend(Self::extract_selection_column_names(
                 selection,
-                &quote_style,
+                quote_style.as_ref(),
             ));
         }
 
-        extraction_query_projection
+        let extraction_query_projection: HashSet<SelectItem> =
+            extraction_query_projection.iter().cloned().collect();
+
+        extraction_query_projection.iter().cloned().collect()
     }
 
     fn extract_selection_column_names<'a>(
         selection: &'a Selection,
-        quote_style: &'a Option<char>,
+        quote_style: Option<&'a char>,
     ) -> impl Iterator<Item = SelectItem> + 'a {
         selection
             .filters
             .iter()
-            .map(|filter| Self::build_select_item(&filter.column, quote_style))
+            .map(move |filter| Self::build_select_item(&filter.column, quote_style.copied()))
     }
 
-    fn build_select_item(column_name: &str, quote_style: &Option<char>) -> SelectItem {
+    fn build_select_item(column_name: &str, quote_style: Option<char>) -> SelectItem {
         ast::SelectItem::UnnamedExpr(ast::Expr::Identifier(ast::Ident {
             value: String::from(column_name),
-            quote_style: *quote_style,
+            quote_style,
         }))
     }
 
@@ -197,19 +205,19 @@ impl QueryMetadata {
         projection: &[ast::SelectItem],
         from: &[ast::TableWithJoins],
         selection: Option<&ast::Expr>,
-    ) -> Result<String, ParseError> {
+    ) -> String {
         let query = create_query(projection, from, selection);
         let select_statement = ast::Statement::Query(Box::new(query));
-        Ok(select_statement.to_string())
+        select_statement.to_string()
     }
 
     // SELECT row FROM (SELECT row_number() over () as row, list_of_selection_columns FROM table) subquery WHERE selection
     fn create_data_answer_index_query(
         from: &[ast::TableWithJoins],
-        selection_parsed: &Option<Selection>,
+        selection_parsed: Option<&Selection>,
         selection: Option<&ast::Expr>,
         quote_style: Option<char>,
-    ) -> Result<String, ParseError> {
+    ) -> String {
         let mut subquery_selection = Vec::default();
         subquery_selection.push(ast::SelectItem::ExprWithAlias {
             expr: ast::Expr::Identifier(ast::Ident {
@@ -225,7 +233,7 @@ impl QueryMetadata {
         if let Some(selection) = selection_parsed {
             subquery_selection.extend(Self::extract_selection_column_names(
                 selection,
-                &quote_style,
+                quote_style.as_ref(),
             ));
         }
 
@@ -242,12 +250,12 @@ impl QueryMetadata {
             },
             joins: vec![],
         }];
-        let row = Self::build_select_item("row", &quote_style);
+        let row = Self::build_select_item("row", quote_style);
 
         let query = create_query(&vec![row], &query_from, selection);
 
         let select_statement = ast::Statement::Query(Box::new(query));
-        Ok(select_statement.to_string())
+        select_statement.to_string()
     }
 }
 
@@ -304,18 +312,18 @@ impl FromClauseIdentifier<'_> {
                 let db_matches = if expected.db.is_none() {
                     true
                 } else {
-                    db.map_or(true, |db| {
+                    db.is_none_or(|db| {
                         expected
                             .db
                             .as_ref()
-                            .map_or(true, |expected_db| &case_fold_identifier(db) == expected_db)
+                            .is_none_or(|expected_db| &case_fold_identifier(db) == expected_db)
                     })
                 };
                 let schema_matches = if expected.schema.is_none() {
                     true
                 } else {
-                    schema.map_or(true, |schema| {
-                        expected.schema.as_ref().map_or(true, |expected_schema| {
+                    schema.is_none_or(|schema| {
+                        expected.schema.as_ref().is_none_or(|expected_schema| {
                             &case_fold_identifier(schema) == expected_schema
                         })
                     })
