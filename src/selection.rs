@@ -30,39 +30,39 @@ impl<'a> FilterExtractor<'a> {
         let mut filters: Vec<Filter> = Vec::new();
         let mut logical_op: Option<LogicalOperator> = None;
 
-        fn traverse(
-            filter_extractor: &FilterExtractor,
-            expr: &Expr,
-            filters: &mut Vec<Filter>,
-            logical_op: &mut Option<LogicalOperator>,
-        ) -> Result<(), ParseError> {
-            match expr {
-                Expr::BinaryOp { left, op, right } => {
-                    if let Some(logical) = matches_logical_operator(op) {
-                        if logical_op.as_ref().is_some_and(|op| op != &logical) {
-                            return Err(unsupported!(format!(
-                                "unsupported expression in the WHERE clause, can't use different logical operator."
-                            )));
-                        }
-
-                        *logical_op = Some(logical);
-                        traverse(filter_extractor, left, filters, logical_op)?;
-                        traverse(filter_extractor, right, filters, logical_op)?;
-                    } else {
-                        filters.push(filter_extractor.handle_single(expr)?);
-                    }
-                }
-                _ => filters.push(filter_extractor.handle_single(expr)?),
-            }
-            Ok(())
-        }
-
-        traverse(self, selection, &mut filters, &mut logical_op)?;
+        self.traverse(selection, &mut filters, &mut logical_op)?;
 
         Ok(Selection {
             filters,
             operation: logical_op,
         })
+    }
+
+    fn traverse(
+        &self,
+        expr: &Expr,
+        filters: &mut Vec<Filter>,
+        logical_op: &mut Option<LogicalOperator>,
+    ) -> Result<(), ParseError> {
+        match expr {
+            Expr::BinaryOp { left, op, right } => {
+                if let Some(logical) = matches_logical_operator(op) {
+                    if logical_op.as_ref().is_some_and(|op| op != &logical) {
+                        return Err(unsupported!(format!(
+                            "unsupported expression in the WHERE clause, can't use different logical operator."
+                        )));
+                    }
+
+                    *logical_op = Some(logical);
+                    self.traverse(left, filters, logical_op)?;
+                    self.traverse(right, filters, logical_op)?;
+                } else {
+                    filters.push(self.handle_single(expr)?);
+                }
+            }
+            _ => filters.push(self.handle_single(expr)?),
+        }
+        Ok(())
     }
 
     fn handle_single(&self, expr: &Expr) -> Result<Filter, ParseError> {

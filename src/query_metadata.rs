@@ -231,10 +231,10 @@ impl QueryMetadata {
         });
 
         if let Some(selection) = selection_parsed {
-            subquery_selection.extend(Self::extract_selection_column_names(
-                selection,
-                quote_style.as_ref(),
-            ));
+            let column_names: HashSet<SelectItem> =
+                Self::extract_selection_column_names(selection, quote_style.as_ref()).collect();
+
+            subquery_selection.extend(column_names);
         }
 
         let subquery = create_query(&subquery_selection, from, None);

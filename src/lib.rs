@@ -78,8 +78,6 @@ mod tests {
                 data_answer_index_query: sample_data_answer_index_query(),
             });
 
-            println!("QM: {:?}", QueryMetadata::parse(query, None));
-
             assert_eq!(
                 QueryMetadata::parse(query, None),
                 expected,
