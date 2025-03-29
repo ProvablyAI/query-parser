@@ -1,8 +1,9 @@
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 /// Koron errors.
 #[allow(clippy::module_name_repetitions)]
-#[derive(Clone, Debug, Error, PartialEq, Eq)]
+#[derive(Clone, Debug, Error, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseError {
     #[error("malformed query: {message}")]
     MalformedQuery { message: String },
