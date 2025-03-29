@@ -11,7 +11,7 @@ use crate::{
 };
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema)]
-#[serde(tag = "type")]
+#[serde(tag = "type", content = "value")]
 pub enum Projection {
     Aggregations(Vec<Aggregation>),
     PlainColumns(Vec<PlainColumn>),
