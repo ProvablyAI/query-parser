@@ -29,7 +29,6 @@ use crate::{
 /// QueryMetadata extracted from the query.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, Default, ToSchema, IntoParams)]
 pub struct QueryMetadata {
-    // pub projection: Vec<String>,
     /// Aggregation performed.
     pub projection: Projection,
     /// Table subject to query.
