@@ -11,15 +11,13 @@ pub mod table;
 
 #[cfg(test)]
 mod tests {
-
-    use serde::de::Expected;
-
     use crate::aggregation::Column;
     use crate::projection::Projection;
     use crate::query_metadata::QueryMetadata;
-    use crate::selection::{Filter, LogicalOperator, Selection};
+    use crate::selection::{Filter, Selection};
     use crate::table::TabIdent;
     use crate::{internal, malformed_query, unsupported};
+    use utoipa::gen::serde_json;
 
     use super::aggregation::{Aggregation, KoronFunction};
     use super::comparison::CompareOp;
@@ -50,13 +48,23 @@ mod tests {
     }
 
     #[test]
+    fn test() {
+        let query = "SELECT test_column_2 FROM test_db.test_schema.test_table_1 WHERE test_column_2 = 10 AND test_column_2 = 20 AND test_column_2 = 30";
+        let query_metadata = QueryMetadata::parse(query, None);
+        println!(
+            "query_metadata: {:?}",
+            serde_json::to_string(&query_metadata)
+        );
+    }
+
+    #[test]
     fn basic_aggregation() {
         let cases = [
             ("SUM(test_column_2)", KoronFunction::Sum),
             ("COUNT(test_column_2)", KoronFunction::Count),
             // ("AVG(test_column_2)", KoronFunction::Average),
-            // ("MIN(test_column_2)", KoronFunction::Min),
-            // ("MAX(test_column_2)", KoronFunction::Max),
+            ("MIN(test_column_2)", KoronFunction::Min),
+            ("MAX(test_column_2)", KoronFunction::Max),
         ];
 
         for (projection, function) in cases {

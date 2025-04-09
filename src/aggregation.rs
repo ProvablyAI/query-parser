@@ -106,8 +106,8 @@ impl Aggregation {
                 "sum" => return only_column_arg(KoronFunction::Sum),
                 "count" => return only_column_arg(KoronFunction::Count),
                 // "avg" => return only_column_arg(KoronFunction::Average),
-                // "min" => return only_column_arg(KoronFunction::Min),
-                // "max" => return only_column_arg(KoronFunction::Max),
+                "min" => return only_column_arg(KoronFunction::Min),
+                "max" => return only_column_arg(KoronFunction::Max),
                 _ => (),
             }
         }
@@ -196,9 +196,9 @@ pub enum KoronFunction {
     // /// The `average` aggregation function.
     // Average,
     // /// The `min` aggregation function.
-    // Min,
-    // /// The `max` aggregation function.
-    // Max,
+    Min,
+    /// The `max` aggregation function.
+    Max,
 }
 
 impl Display for KoronFunction {
@@ -207,8 +207,8 @@ impl Display for KoronFunction {
             Self::Sum => write!(f, "SUM"),
             Self::Count => write!(f, "COUNT"),
             // Self::Average => write!(f, "AVG"),
-            // Self::Min => write!(f, "MIN"),
-            // Self::Max => write!(f, "MAX"),
+            Self::Min => write!(f, "MIN"),
+            Self::Max => write!(f, "MAX"),
         }
     }
 }
@@ -223,8 +223,8 @@ mod tests {
             (KoronFunction::Count, "COUNT"),
             (KoronFunction::Sum, "SUM"),
             // (KoronFunction::Average, "AVG"),
-            // (KoronFunction::Min, "MIN"),
-            // (KoronFunction::Max, "MAX"),
+            (KoronFunction::Min, "MIN"),
+            (KoronFunction::Max, "MAX"),
         ];
         for (koron_fn, expected) in cases {
             assert_eq!(koron_fn.to_string(), expected.to_string());

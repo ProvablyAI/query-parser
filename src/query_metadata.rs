@@ -168,7 +168,7 @@ impl QueryMetadata {
                     opt_replace: None,
                 })]
             }
-        };
+        }
 
         if let Some(selection) = selection {
             extraction_query_projection.extend(Self::extract_selection_column_names(

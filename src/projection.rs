@@ -37,7 +37,7 @@ impl Projection {
                     exprs.push((remove_outer_parens(expr), Some(case_fold_identifier(alias))));
                 }
                 ast::SelectItem::QualifiedWildcard(..) => return unsupported(),
-            };
+            }
         }
 
         let (expr_sample, _) = exprs
