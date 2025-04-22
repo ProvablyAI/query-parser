@@ -45,7 +45,7 @@ impl QueryMetadata {
             from,
             selection,
         } = DestructuredQuery::destructure(statement)?;
-        //check and extract table informations from FROM clause
+        //check and extract table information from FROM clause
         let TableIdentWithAlias(table_name, table_alias) = TableIdentWithAlias::extract(from)?;
         //extract table name to be used in the SELECT clause
         let from_clause_identifier = table_alias.as_deref().map_or_else(
